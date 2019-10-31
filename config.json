@@ -1,0 +1,8 @@
+{
+  "debug": true,
+  "test_all_on": false,
+  "test_date" : "2019-12-02",
+  "mqtt_ip": "192.168.2.13",
+  "port": "4747",
+  "ip": "0.0.0.0"
+}
