@@ -1,6 +1,6 @@
 'use strict';
 
- const NissanConnect = require('./nissan-connect');
+ //const NissanConnect = require('./nissan-connect');
  const LeafConnect = require('./leaf-connect');
  const mqtt = require('./router/mqttrouter');
  const events = require('events');
