@@ -138,7 +138,7 @@ class leafAPI {
 
   adjustBatteryStatus() {
     //TEST!!
-    this.batteryStatus.pluginState = 'CONNECTED';
+    //this.batteryStatus.pluginState = 'CONNECTED';
 
     this.batteryStatus.percentage = Math.round(this.batteryStatus.Level*100/this.batteryStatus.capacity);
     if (this.batteryStatus.SOC) {
