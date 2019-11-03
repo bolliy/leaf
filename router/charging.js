@@ -76,17 +76,24 @@
         break;
       case _topic+'/charging/activ':
         let activ = (message.toString() === 'ON');
-        laden.aktiv = activ;
-        calcCharging();
+        if (laden.aktiv != activ) {
+          laden.aktiv = activ;
+          calcCharging();
+        }
         break;
       case _topic+'/charging/pause':
         let pause = (message.toString() === 'ON');
-        laden.pause = pause;
-        calcCharging();
+        if (laden.pause != pause) {
+          laden.pause = pause;
+          calcCharging();
+        }
         break;
       case _topic+'/charging/up-to-percent':
-        laden.percent = parseInt(message.toString());
-        calcCharging();
+        let percent = parseInt(message.toString());
+        if (laden.percent != percent) {
+          laden.percent = parseInt(message.toString());
+          calcCharging();
+        }  
         break;
    }
  };
