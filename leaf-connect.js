@@ -5,6 +5,7 @@
 const request2 = require('request');
 //const request = require('request-promise-native');
 const crypto = require('crypto');
+const logger = require('./logger');
 
 const BatteryApi = require('./battery/battery-api');
 const LoginResponse = require('./responses/login-response');
@@ -27,6 +28,7 @@ class leafAPI {
     /**
      * @type {BatteryApi}
      */
+    this.logger = new logger('leafAPI');
     this.battery = new BatteryApi(this);
     this.leaf = undefined;
     this.customerInfo = undefined;
@@ -55,7 +57,7 @@ class leafAPI {
 
   async login() {
     const key = await this.connect();
-    console.log('logging in with key '+key);
+    this.log('logging in with key '+key);
     this.loggingIn = true; //Semaphore
     let res;
     try {
@@ -65,7 +67,7 @@ class leafAPI {
        });
     } catch(err) {
       this.loggingIn = false;
-      console.log('Login failed');
+      this.log('Login failed');
       throw err;
     }
     //console.log(res);
@@ -81,7 +83,7 @@ class leafAPI {
   //
   //https://www.heise.de/developer/artikel/async-und-await-fuer-Node-js-3633105.html
   request(endPoint, data) {
-    console.log('Aufruf request...');
+    this.log('Aufruf request...');
     const defaults = {
       initial_app_str: Config.initialAppString,
       RegionCode: this.region
@@ -98,7 +100,7 @@ class leafAPI {
     return new Promise((resolve, reject) => {
       request2(options, (err, response, body) => {
         if (err) {
-          console.log(err.message);
+          this.log(err.message);
           return reject(err);
         }
         if (body.status !== 200) {
@@ -114,23 +116,23 @@ class leafAPI {
  //Request mit Errorhandling
  async requestB(endPoint, data) {
     this.checkLogin();
-    console.log('Aufruf request with Errorhandling...');
+    this.log('Aufruf request with Errorhandling...');
 
     let res;
     try {
       res = await this.request(endPoint, data);
     } catch(err) {
       if (err === 401) {
-        console.log('relogin...');
+        this.log('relogin...');
         await this.reLogin();
-        console.log('erneuter requestPromise ...')
+        this.log('erneuter requestPromise ...')
         return await this.request(endPoint, data); //rekusive
       }
       throw err; //benutzerdefinierte Exception erzeugen
     }
 
     let status = res.status;
-    console.log('Request result:'+status);
+    this.log('Request result:'+status);
 
     return res;
   }
@@ -201,7 +203,7 @@ class leafAPI {
         return Promise.reject(1000);  //Mit Fehler 1000 abbrechen
       };
       count ++;
-      console.log('retrying requestBatteryStatusResult');
+      this.log('retrying requestBatteryStatusResult');
       [updateInfo] = await Promise.all([
         this.battery.requestStatusResult(this.leaf, this.customerInfo, key),
         leafAPI.timeout(10000) //wait 5 seconds before continuing
@@ -225,12 +227,12 @@ class leafAPI {
   }
 
   async checkLogin() {
-    console.log('checkLogin loggedIn = ' + this.loggedIn);
+    this.log('checkLogin loggedIn = ' + this.loggedIn);
     if (this.loggedIn) {
       return;
     }
     if (this.loggingIn) {
-      console.log('Loginprozess im Gange, ich warte.....')
+      this.log('Loginprozess im Gange, ich warte.....')
       await leafAPI.timeout(2000); //statische Methode
       return this.checkLogin();
     }
@@ -239,7 +241,7 @@ class leafAPI {
 
 
   async reLogin() {
-    console.log('not authorised, retrying');
+    this.log('not authorised, retrying');
     this.loggedIn = false;
     return this.checkLogin();
   }
@@ -249,8 +251,7 @@ class leafAPI {
   }
 
   log(message) {
-    console.log(message);
-    //this.logger.log(message);
+    this.logger.log(message);
   }
 
   encryptPassword(password, key) {

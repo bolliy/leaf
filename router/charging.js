@@ -5,9 +5,12 @@
  const config = require('./config');
  const mqtt = require('./mqttrouter');
  const events = require('events');
+ const logger = require('../logger');
 
  //create an object of EventEmitter class by using above reference
- var em = new events.EventEmitter();
+ const em = new events.EventEmitter();
+ const log = new logger('charging');
+
 
  let lc;
 
@@ -27,7 +30,7 @@
    init(nc){
      //globale Varibale
      lc = nc;
-     mqtt.init(lc.schalter,handleEvent);
+     mqtt.init(handleEvent);
   },
   startProzess() {
     em.on('CalcCharing', calcCharging);
@@ -45,14 +48,20 @@
  function handleEvent(reason) {
    mqtt.subscribe('/charging/activ',handleMqttEvent);
    mqtt.subscribe('/charging/pause',handleMqttEvent);
+   mqtt.subscribe('/charging/up-to-percent',handleMqttEvent);
    mqtt.subscribe('/charging/tele/LWT',handleMqttEvent); /* Online/offline */
    mqtt.subscribe('/charging/stat/POWER',handleMqttEvent); /* ON/OFF */
+/*
+   mqtt.publish('/charging/start',laden.start.toLocaleString(),'{"retain":"true"}');
+   mqtt.publish('/charging/end',laden.end,'{"retain":"true"}');
+   mqtt.publish('/charging/minutes',laden.minutes.toString(),'{"retain":"true"}');
+   */
  }
 
  async function handleMqttEvent(topic,message) {
-   console.log('handleMqttEvent');
-   const _topic = config.get("mqtt_topic");
-   console.log(topic+' change to %s ', message);
+   log.log('handleMqttEvent');
+   const _topic = mqtt.topic;
+   log.log(topic+' change to '+message.toString());
    switch (topic) {
       case _topic+'/charging/tele/LWT':
         let connected = (message.toString() === 'online');
@@ -66,10 +75,18 @@
         //em.emit('CalcCharing');
         break;
       case _topic+'/charging/activ':
-        console.log(message.toString())
+        let activ = (message.toString() === 'ON');
+        laden.aktiv = activ;
+        calcCharging();
         break;
       case _topic+'/charging/pause':
-        console.log(message.toString());
+        let pause = (message.toString() === 'ON');
+        laden.pause = pause;
+        calcCharging();
+        break;
+      case _topic+'/charging/up-to-percent':
+        laden.percent = parseInt(message.toString());
+        calcCharging();
         break;
    }
  };
@@ -85,25 +102,28 @@
      if (nowTime >= laden.start && laden.minutes > 30) {
        laden.request = false;
        laden.loading = true;
-       console.log('Der Ladevorgang wird jetzt gestartet...');
+       log.log('Der Ladevorgang wird jetzt gestartet...');
        mqtt.switchON();
        let res= await lc.battery.startCharging(lc.leaf,lc.customerInfo);
-       //console.log(res);
      }
    }
    //Abbruchbedingung
+   if (laden.request && !lc.batteryStatus.isConnected) {
+     laden.request = false;
+   };
+
    if (laden.loading) {
      if (lc.batteryStatus.level >= laden.percent || nowTime > laden.end) {
        laden.loading = false;
-       console.log('Leaf ist fertig geladen. '+lc.batteryStatus.level+'%');
+       log.log('Leaf ist fertig geladen. '+lc.batteryStatus.level+'%');
      }
      if (!lc.batteryStatus.isConnected) {
        laden.loading = false;
-       console.log('Ladekabel wurde entfernt. Der Ladevorgang wurde beendet.')
+       log.log('Ladekabel wurde entfernt. Der Ladevorgang wurde beendet.')
      };
-    if (lc.schalter.state === 'OFF') {
+     if (lc.schalter.state === 'OFF') {
        laden.loading = false;
-       console.log('Ladesteckdose wurde ausgeschaltet. Der Ladevorgang wurde beendet.')
+       log.log('Ladesteckdose wurde ausgeschaltet. Der Ladevorgang wurde beendet.')
      };
      if (!laden.loading) {
        mqtt.switchOFF();
@@ -113,48 +133,49 @@
 
  //Berechnet der Ladeinformationen
  async function calcCharging(data) {
-
    if (!laden.aktiv) {
      return;
    };
-   console.log('calcCharging...');
-   let nowTime = new Date();
-   nowTime.setTime(Date.now());
    let pTime=passedTime(lc.batteryStatus.updateTime);
-
+   let ladeMinuten = 0;
+   if (pTime < 12*60*60000) {   //kleiner 12 Stunde
+     //Ladezeit berechnen in Minuten
+     ladeMinuten = Math.round(900 * (laden.percent - lc.batteryStatus.percentage)/100);
+   }
+   log.log('calcCharging...');
    //console.log('Schalter: '+JSON.stringify(lc.schalter));
    //Status des Ladekabel hat sich geändert
    if (laden.lastIsConnected != lc.batteryStatus.isConnected) {
-     if (!laden.pause && !laden.loading && !laden.request && lc.schalter.connected && lc.batteryStatus.isConnected && !lc.batteryStatus.isConnectedToQuickCharging) {
-       //Einleitung
+     if (!laden.pause && !laden.loading && !laden.request
+          && lc.schalter.connected && lc.batteryStatus.isConnected
+          && !lc.batteryStatus.isConnectedToQuickCharging
+          && ladeMinuten > 30) {
+       //requestBatteryStatusResult
        laden.minutes = 0;
        laden.start = new Date(0); //1. Januar 1970 00:00:00 UTC
        laden.end  = new Date(0);  //1. Januar 1970 00:00:00 UTC
        laden.request = true; //Es soll geladen werden
      };
+     //Pausieren und das Ladekabel wurde entfernt
+     if (laden.pause && !lc.batteryStatus.isConnected) {
+        laden.pause = false; //Pause wieder aufheben
+        mqtt.publish('/charging/pause','OFF');
+     };
      laden.lastIsConnected = lc.batteryStatus.isConnected;
-     laden.pause = false; //Pause wieder aufheben
    };
    //Gibt es ein Request aber das Kabel wurde abgzogen
    if (laden.request && !lc.batteryStatus.isConnected ) {
      laden.request = false;
-   }
-
+   };
    //Wie alt sind die Batteriedaten in Millisekunden?
-   console.log('Alter der Batteriedaten '+Math.trunc(pTime/60000)+' Minuten');
+   log.log('Alter der Batteriedaten '+Math.trunc(pTime/60000)+' Minuten');
    //Soll der Leaf laden oder lädt er schon
    //console.log('Request: '+laden.request+' loading: '+laden.loading);
    if (laden.request || laden.loading) {
+     let nowTime = new Date();
+     nowTime.setTime(Date.now());
      //Wie alt ist der Batteriestatus
-     //TEST
-     //laden.minutes = 61; //10 Minuten test
-     if (pTime < 12*60*60000) {   //kleiner 12 Stunde
-       //Ladezeit berechnen in Minuten
-       laden.minutes = Math.round(900 * (laden.percent - lc.batteryStatus.percentage)/100);
-     } else {
-       laden.minutes = 0; //alten Daten keine Ladung!
-     }
-
+     laden.minutes = ladeMinuten;
      //Ladezeit berechnen
      if (!laden.loading) {
        let calcTime = new Date(nowTime.valueOf());
@@ -184,20 +205,25 @@
        //Der Batteriestatus neuer zum Ladestart
        let helpTime = new Date(lc.batteryStatus.updateTime);
        if (laden.start.valueOf() <  helpTime) {
-         console.log(laden.minutes+' abzüglich '+Math.trunc(pTime/60000));
+         log.log(laden.minutes+' abzüglich '+Math.trunc(pTime/60000));
          laden.minutes = laden.minutes - Math.trunc(pTime/60000); //abzüglich des Batteriestatusalters in ms
        } else {
          laden.minutes = laden.minutes - ladeMinuten;
        }
-       console.log('Leaf lädt seit '+ladeMinuten+' Minuten und wird noch '+laden.minutes+' Minuten laden.');
+       log.log('Leaf lädt seit '+ladeMinuten+' Minuten und wird noch '+laden.minutes+' Minuten laden.');
        //neuer Endzeit, sofern sich diese 15 Minuten zum vorherigen Wert unterscheidet.
        if (Math.abs(nowTime.valueOf() + laden.minutes*60000-laden.end)>15*60000) {
          laden.end = new Date(nowTime.valueOf() + laden.minutes*60000);
        }
      }
    };
-   console.log(laden);
-   console.log('### END calcCharging ###')
+   let datum = new Date(laden.start);
+   mqtt.publish('/charging/start',datum.toLocaleString(),'{retain:TRUE}');
+   datum = new Date(laden.end);
+   mqtt.publish('/charging/end',datum.toLocaleString(),'{retain:TRUE}');
+   mqtt.publish('/charging/minutes',laden.minutes,'{"retain":"true"}');
+   log.log(laden);
+   log.log('### END calcCharging ###')
  };
 
  async function startChargingTask() {
@@ -225,26 +251,26 @@
 async function getBattery() {
   //15 Minuten alt
   if (passedTime(lc.batteryStatus.updateTime) < 15*60000) {
-    console.log('Batteriedaten aktuell');
+    log.log('Batteriedaten aktuell');
     return;
   }
   //TEST
   //return;
   let res = await lc.getLastBatteryStatus();
-  console.log(JSON.stringify(res));
-  console.log(lc.batteryStatus);
+  //console.log(JSON.stringify(res));
+  log.log(JSON.stringify(lc.batteryStatus));
   let datum = new Date(lc.batteryStatus.updateTime);
-  console.log(datum.toLocaleString());
-  console.log(lc.batteryStatus.percentage+' %');
+  log.log(datum.toLocaleString());
+  log.log(lc.batteryStatus.percentage+' %');
   if (passedTime(lc.batteryStatus.updateTime) > 15*60000) {
     let status = await lc.getBatteryStatus();
-    console.log(lc.batteryStatus);
+    log.log(lc.batteryStatus);
     datum = new Date(lc.batteryStatus.updateTime);
-    console.log(datum.toLocaleString());
-    console.log(lc.batteryStatus.percentage+' %');
+    log.log(datum.toLocaleString());
+    log.log(lc.batteryStatus.percentage+' %');
 
-    console.log('#### Charge State:'+status.batteryStatus.chargeState);
-    console.log('#### Time to Full 3KW:'+status.batteryStatus.timeToFull3kW);
+    log.log('#### Charge State:'+status.batteryStatus.chargeState);
+    log.log('#### Time to Full 3KW:'+status.batteryStatus.timeToFull3kW);
   };
 
   //console.log(lc.schalter);
@@ -253,8 +279,8 @@ async function getBattery() {
 async function startBatteryTask() {
   let ende=false;
   while (ende===false) {
-    let minuten=5;
-    console.log('BatteryProcess NextTick');
+    let minuten=1;
+    log.log('BatteryProcess NextTick');
     await getBattery().then( ()=> {
       //console.log(lc.batteryStatus);
       //BatteryStaus an mqtt senden
@@ -267,10 +293,13 @@ async function startBatteryTask() {
       //em.emit('CalcCharing');
       //handleEvent('Event from getBattery ;)');
     }).catch(err => {
-      console.log('Fehler '+err);
+      log.log('Fehler '+err);
+      minuten = 0,1;
       if (err===401) {
-        console.log('not authorised');
-        minuten = 0,5;
+        log.log('not authorised');
+      };
+      if (err==408) {
+        log.log('timeout');
       };
       //
       if (err != 1000) {

@@ -11,7 +11,6 @@
   charging.init(lc);
   charging.startProzess();
 
-
   console.log('#ENDE#');
 
 
