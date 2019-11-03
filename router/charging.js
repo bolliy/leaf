@@ -93,7 +93,7 @@
         if (laden.percent != percent) {
           laden.percent = parseInt(message.toString());
           calcCharging();
-        }  
+        }
         break;
    }
  };
@@ -143,6 +143,7 @@
    if (!laden.aktiv) {
      return;
    };
+   const oldLaden = laden;
    let pTime=passedTime(lc.batteryStatus.updateTime);
    let ladeMinuten = 0;
    if (pTime < 12*60*60000) {   //kleiner 12 Stunde
@@ -153,8 +154,11 @@
    //console.log('Schalter: '+JSON.stringify(lc.schalter));
    //Status des Ladekabel hat sich geändert
    if (laden.lastIsConnected != lc.batteryStatus.isConnected) {
-     if (!laden.pause && !laden.loading && !laden.request
-          && lc.schalter.connected && lc.batteryStatus.isConnected
+     if (!laden.pause
+          && !laden.loading
+          && !laden.request
+          && lc.schalter.connected
+          && lc.batteryStatus.isConnected
           && !lc.batteryStatus.isConnectedToQuickCharging
           && ladeMinuten > 30) {
        //requestBatteryStatusResult
@@ -224,11 +228,18 @@
        }
      }
    };
-   let datum = new Date(laden.start);
-   mqtt.publish('/charging/start',datum.toLocaleString(),'{retain:TRUE}');
-   datum = new Date(laden.end);
-   mqtt.publish('/charging/end',datum.toLocaleString(),'{retain:TRUE}');
-   mqtt.publish('/charging/minutes',laden.minutes,'{"retain":"true"}');
+   let datum;
+   if (laden.start != oldLaden.start) {
+     datum = new Date(laden.start);
+     mqtt.publish('/charging/start',datum.toLocaleString(),'{retain:TRUE}');
+   };
+   if (laden.end != oldLaden.end) {
+     datum = new Date(laden.end);
+     mqtt.publish('/charging/end',datum.toLocaleString(),'{retain:TRUE}');
+   };
+   if (laden.minutes != oldLaden.minutes) {
+     mqtt.publish('/charging/minutes',laden.minutes,'{"retain":"true"}');
+   };  
    log.log(laden);
    log.log('### END calcCharging ###')
  };
@@ -301,7 +312,7 @@ async function startBatteryTask() {
       //handleEvent('Event from getBattery ;)');
     }).catch(err => {
       log.log('Fehler '+err);
-      minuten = 0,1;
+      minuten = 0.1;
       if (err===401) {
         log.log('not authorised');
       };
