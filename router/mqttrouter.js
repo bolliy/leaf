@@ -7,6 +7,8 @@ config.init();
 //console.log(config.get("mqtt_ip"));
 const client = mqtt.connect('mqtt://'+config.get("mqtt_ip"));
 var _topic = config.get("mqtt_topic");
+var subscribes = [];
+var callbacks = [];
 
 const mqttRouter = {
     schalter : undefined,
@@ -18,8 +20,7 @@ const mqttRouter = {
       client.on('connect', () => {
         console.log('mqtt connected');
         this.connected = true;
-        client.subscribe(_topic+'/tele/LWT');  /* Online/offline */
-        client.subscribe(_topic+'/stat/POWER'); /* ON/OFF */
+        eventHandler();
       });
 
       client.on('disconnect', () => {
@@ -30,41 +31,51 @@ const mqttRouter = {
       client.on('message', (topic, message) => {
          console.log('Event mqtt message '+message);
          if (topic.indexOf(_topic) === 0) {
-           switch (topic) {
-              case _topic+'/tele/LWT':
-                return this.handleConnected(message)
-              case _topic+'/stat/POWER':
-                return this.handleState(message)
-           }
+           //CallBack(message)
+           //console.log('client.on '+topic +' '+ message);
+           return this.getCallbackFromTopic(topic)(topic,message);
          }
          console.log('No handler for topic %s', topic)
      });
   },
 
-  handleConnected (message) {
-    console.log(_topic+' switch connected status %s ', message)
-    let connected = (message.toString() === 'online');
-    this.schalter.connected = connected;
-  },
-
-  handleState (message) {
-    this.schalter.state = message.toString();
-    console.log(_topic+' switch state update to %s', message);
-    this.eventHandler('Event from mqttrouter');
-    //Hier ein event absetzen
-  },
-
-  switchON () {
+    switchON () {
     if (this.schalter.connected && this.schalter.state !== 'ON') {
-      client.publish(_topic+'/cmnd/POWER', 'ON');
+      client.publish(_topic+'/charging/cmnd/POWER', 'ON');
     }
   },
 
   switchOFF () {
     if (this.schalter.connected && this.schalter.state !== 'OFF') {
-      client.publish(_topic+'/cmnd/POWER', 'OFF')
+      client.publish(_topic+'/charging/cmnd/POWER', 'OFF')
     }
   },
+  subscribe(subTopic,callback) {
+     console.log('Call subscribe ... '+subTopic);
+     client.subscribe(_topic+subTopic,(err,grandet) =>{
+       if (err) {
+         console.log(err.message);
+         return;
+       }
+       //push ein JSON Object
+       subscribes.push(JSON.parse('{"topic":"'+_topic+subTopic+'"}'));
+       callbacks.push(callback);
+       //console.log(this.getCallbackFromTopic(_topic+subTopic));
+     });
+  },
+  getCallbackFromTopic(topic) {
+    //syncron im Gegensatz zu foreach
+    for (var i = 0; i < subscribes.length; i++) {
+      if (subscribes[i].topic===topic) {
+        //console.log(subscribes[i],callbacks[i], i);
+        return callbacks[i];
+      }
+    }
+    return null;
+  },
+  publish(subTopic,messages,callback) {
+    client.publish(_topic+subTopic, messages.toString(),callback);
+  }
 };
 
 module.exports = mqttRouter;

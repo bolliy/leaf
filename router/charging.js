@@ -1,22 +1,20 @@
 'use strict';
 
  //const NissanConnect = require('./nissan-connect');
- const LeafConnect = require('./leaf-connect');
- const mqtt = require('./router/mqttrouter');
+ const LeafConnect = require('../leaf-connect');
+ const config = require('./config');
+ const mqtt = require('./mqttrouter');
  const events = require('events');
- const charge = require('./router/charging');
 
  //create an object of EventEmitter class by using above reference
  var em = new events.EventEmitter();
 
-
- let lc = new LeafConnect('NE','stephan@mante.info','2389Ghost'); //NE
- charge.init(lc);
-
- mqtt.init(lc.schalter,handleEvent);
+ let lc;
 
  let laden = {
-    lastIsConnected:false,
+    lastIsConnected:undefined,
+    aktiv:true,
+    pause:false,
     request:false,
     loading:false,
     percent:80,
@@ -25,21 +23,62 @@
     end:0,
  };
 
-
-
- // Raising FirstEvent
- //em.emit('FirstEvent', 'This is my first Node.js event emitter example.');
- //console.log(lc.schalter);
-
- //let nc = new NissanConnect('stephan@mante.info','2389Ghost');
-
- //Ladevorgang einleiten
+ const charging = {
+   init(nc){
+     //globale Varibale
+     lc = nc;
+     mqtt.init(lc.schalter,handleEvent);
+  },
+  startProzess() {
+    em.on('CalcCharing', calcCharging);
+    startBatteryTask();
+    startChargingTask();
+  },
+  getData(){
+    return laden;
+  },
+  setData(data) {
+    laden = data;
+  }
+ };
 
  function handleEvent(reason) {
-   em.emit('CalcCharing', reason);
+   mqtt.subscribe('/charging/activ',handleMqttEvent);
+   mqtt.subscribe('/charging/pause',handleMqttEvent);
+   mqtt.subscribe('/charging/tele/LWT',handleMqttEvent); /* Online/offline */
+   mqtt.subscribe('/charging/stat/POWER',handleMqttEvent); /* ON/OFF */
  }
 
- async function charging() {
+ async function handleMqttEvent(topic,message) {
+   console.log('handleMqttEvent');
+   const _topic = config.get("mqtt_topic");
+   console.log(topic+' change to %s ', message);
+   switch (topic) {
+      case _topic+'/charging/tele/LWT':
+        let connected = (message.toString() === 'online');
+        lc.schalter.connected = connected;
+        calcCharging();
+        //em.emit('CalcCharing');
+        break;
+      case _topic+'/charging/stat/POWER':
+        lc.schalter.state = message.toString();
+        calcCharging();
+        //em.emit('CalcCharing');
+        break;
+      case _topic+'/charging/activ':
+        console.log(message.toString())
+        break;
+      case _topic+'/charging/pause':
+        console.log(message.toString());
+        break;
+   }
+ };
+
+ //Statet und stoppet de Ladeprozess
+ async function chargingProzess() {
+   if (!laden.aktiv) {
+     return
+   };
    let nowTime = new Date();
    nowTime.setTime(Date.now());
    if (laden.request && laden.end > nowTime) {
@@ -49,18 +88,22 @@
        console.log('Der Ladevorgang wird jetzt gestartet...');
        mqtt.switchON();
        let res= await lc.battery.startCharging(lc.leaf,lc.customerInfo);
-       console.log(res);
+       //console.log(res);
      }
    }
    //Abbruchbedingung
    if (laden.loading) {
-     if (lc.batteryStatus.level > laden.percent || laden.loading && nowTime > laden.end) {
+     if (lc.batteryStatus.level >= laden.percent || nowTime > laden.end) {
        laden.loading = false;
-       console.log('Leaf ist fertig geladen.');
+       console.log('Leaf ist fertig geladen. '+lc.batteryStatus.level+'%');
      }
-     if (!lc.schalter.connected) {
+     if (!lc.batteryStatus.isConnected) {
        laden.loading = false;
        console.log('Ladekabel wurde entfernt. Der Ladevorgang wurde beendet.')
+     };
+    if (lc.schalter.state === 'OFF') {
+       laden.loading = false;
+       console.log('Ladesteckdose wurde ausgeschaltet. Der Ladevorgang wurde beendet.')
      };
      if (!laden.loading) {
        mqtt.switchOFF();
@@ -68,34 +111,21 @@
    }
  };
 
+ //Berechnet der Ladeinformationen
  async function calcCharging(data) {
 
-   console.log(data);
-
+   if (!laden.aktiv) {
+     return;
+   };
    console.log('calcCharging...');
-   let pTime;
    let nowTime = new Date();
    nowTime.setTime(Date.now());
-   pTime=passedTime(lc.batteryStatus.updateTime);
+   let pTime=passedTime(lc.batteryStatus.updateTime);
 
-   //Voraussetzungen prüfen
-   //Schalter connected und LadeKabel angeschlossen aber wird noch nicht geladen
-   //TEST!!
-   /*
-   lc.schalter.connected=true;
-   if (lc.batteryStatus.percentage===undefined) {
-     lc.batteryStatus.percentage = 75; //
-   } else {
-     lc.batteryStatus.percentage ++;
-   }
-   pTime = 1*60000; //5 Minuten alt
-   //TEST END;
-   */
-
-   console.log('Schalter: '+JSON.stringify(lc.schalter));
-     // Änderung des PluginState
+   //console.log('Schalter: '+JSON.stringify(lc.schalter));
+   //Status des Ladekabel hat sich geändert
    if (laden.lastIsConnected != lc.batteryStatus.isConnected) {
-     if (!laden.loading && !laden.request && lc.schalter.connected && lc.batteryStatus.isConnected && !lc.batteryStatus.isConnectedToQuickCharging) {
+     if (!laden.pause && !laden.loading && !laden.request && lc.schalter.connected && lc.batteryStatus.isConnected && !lc.batteryStatus.isConnectedToQuickCharging) {
        //Einleitung
        laden.minutes = 0;
        laden.start = new Date(0); //1. Januar 1970 00:00:00 UTC
@@ -103,6 +133,7 @@
        laden.request = true; //Es soll geladen werden
      };
      laden.lastIsConnected = lc.batteryStatus.isConnected;
+     laden.pause = false; //Pause wieder aufheben
    };
    //Gibt es ein Request aber das Kabel wurde abgzogen
    if (laden.request && !lc.batteryStatus.isConnected ) {
@@ -144,7 +175,7 @@
        }
        laden.end = new Date(laden.start.valueOf() + laden.minutes*60000);
        if (laden.start = nowTime) {
-         charging();
+         chargingProzess();
        }
      } else {
        //Neue LadeEndZeit berechnen
@@ -158,7 +189,6 @@
        } else {
          laden.minutes = laden.minutes - ladeMinuten;
        }
-       console.log('laden 3:'+laden.minutes);
        console.log('Leaf lädt seit '+ladeMinuten+' Minuten und wird noch '+laden.minutes+' Minuten laden.');
        //neuer Endzeit, sofern sich diese 15 Minuten zum vorherigen Wert unterscheidet.
        if (Math.abs(nowTime.valueOf() + laden.minutes*60000-laden.end)>15*60000) {
@@ -167,17 +197,15 @@
      }
    };
    console.log(laden);
+   console.log('### END calcCharging ###')
  };
 
  async function startChargingTask() {
    let ende=false;
 
    while (ende===false) {
-     console.log('StartChargingTast');
-     //TEST
-     //calcCharging();
-     charging();
-     //console.log(laden);
+     //console.log('StartChargingTast');
+     chargingProzess();
      await LeafConnect.timeout(1*60000); //statische 1 Minuten
    };
  }
@@ -218,96 +246,42 @@ async function getBattery() {
     console.log('#### Charge State:'+status.batteryStatus.chargeState);
     console.log('#### Time to Full 3KW:'+status.batteryStatus.timeToFull3kW);
   };
-  //Hier könnte der Aufruf calcCharging kommen
-  //handleEvent('Event from getBattery ;)');
-  console.log(lc.schalter);
+
+  //console.log(lc.schalter);
 };
 
 async function startBatteryTask() {
   let ende=false;
-
   while (ende===false) {
+    let minuten=5;
     console.log('BatteryProcess NextTick');
     await getBattery().then( ()=> {
-      console.log(lc.batteryStatus);
-      handleEvent('Event from getBattery ;)');
+      //console.log(lc.batteryStatus);
+      //BatteryStaus an mqtt senden
+      mqtt.publish('/status/battery_percent',lc.batteryStatus.percentage);
+      mqtt.publish('/status/connected',lc.batteryStatus.isConnected);
+      mqtt.publish('/status/charging_status',lc.batteryStatus.chargeStatus);
+      const datum = new Date(lc.batteryStatus.updateTime);
+      mqtt.publish('/status/last_updated',datum.toLocaleString());
+      calcCharging();
+      //em.emit('CalcCharing');
+      //handleEvent('Event from getBattery ;)');
     }).catch(err => {
       console.log('Fehler '+err);
       if (err===401) {
         console.log('not authorised');
+        minuten = 0,5;
       };
-      lc.loggedIn = false;
+      //
+      if (err != 1000) {
+        minuten = 2;
+        lc.loggedIn = false;
+      }
     });
-    if (lc.loggedIn===true) {
-      await LeafConnect.timeout(5*60000); //statische 5 Minuten
-    }
+    //console.log(lc.schalter);
+    await LeafConnect.timeout(minuten*60000); //statische 5 Minuten
   }
 }
 
-async function main() {
-  ///Subscribe for FirstEvent
-   /*
-   em.on('CalcCharing', calcCharging);
-   startBatteryTask();
-   startChargingTask();
-   */
-   /*
-   let ende=false;
 
-   while (ende===false) {
-
-     //Ladekabel angeschlossen und der Leaf lädt noch nicht
-     //if (lc.schalter.connected && !lc.batteryStatus.isCharging && lc.schalter.state !== 'ON') {
-     await calcCharging();
-     charging();
-     console.log(laden);
-     //}
-     await LeafConnect.timeout(1*60000); //statische 5 Minuten
-     console.log('NextTick');
-   };
-  */
-   console.log('#ENDE#');
-
-
-   //AC controls
-   /*
-   await nc.acOn();
-   await nc.acOff();
-
-   await nc.setAcSchedule('2017-11-04 07:30');
-
-   let schedule = await nc.getAcSchedule();
-
-   console.log(schedule.targetDate);
-   */
-   // Battery status
-   /*
-
-   let status = await nc.getLastBatteryStatus();
-
-   console.log('#### Capacity: '+status.capacity);
-
-   console.log('#### Charge State:'+status.chargeState);
-   console.log('#### Time to Full 3KW:'+status.timeToFull3kW);
-
-   status = await nc.getBatteryStatus();
-   console.log('#### Charge State:'+status.batteryStatus.chargeState);
-   console.log('#### Time to Full 3KW:'+status.batteryStatus.timeToFull3kW);
-   */
-/*
-    //Driving analysis
-   let drivingAnalysis = await nc.getDrivingAnalysisWeek('2017-11-01');
-
-   console.log(drivingAnalysis.startDate);
-   drivingAnalysis.days.forEach(daySummary => {
-     console.log(daySummary.targetDate);
-     if (daySummary.hasData) {
-      console.log(daySummary.averageEconomy);
-      console.log(daySummary.regen);
-     }
-   });
-   */
-
- }
-
-main().catch(console.error);
+module.exports = charging;

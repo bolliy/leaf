@@ -13,7 +13,7 @@ const configObj = {
       this.config = new Config("config.json", {
          defaults: {
          mqtt_ip: '192.168.2.27',
-         mqtt_topic: 'leaf/charging',
+         mqtt_topic: 'leaf',
          debug: false,
          test_date: '',
          test_all_on: false,
