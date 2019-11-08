@@ -68,7 +68,14 @@ const mqttRouter = {
     return null;
   },
   publish(subTopic,messages,options) {
-    client.publish(this.topic+subTopic, messages.toString(),options);
+    console.log('#### Aufruf publish ####');
+    client.publish(this.topic+subTopic, messages.toString(),options,(err,date) => {
+      if (err) {
+        console.log(err.message);
+        return;
+      }
+      console.log('publish kein Fehler.')
+    });
   }
 };
 

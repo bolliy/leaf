@@ -143,7 +143,7 @@
    if (!laden.aktiv) {
      return;
    };
-   const oldLaden = laden;
+   const oldLaden = Object.assign({},laden); //klonen ; keine Referenz
    let pTime=passedTime(lc.batteryStatus.updateTime);
    let ladeMinuten = 0;
    if (pTime < 12*60*60000) {   //kleiner 12 Stunde
@@ -231,15 +231,16 @@
    let datum;
    if (laden.start != oldLaden.start) {
      datum = new Date(laden.start);
-     mqtt.publish('/charging/start',datum.toLocaleString(),'{retain:TRUE}');
+     mqtt.publish('/charging/start',datum.toLocaleString(),{retain: true});
    };
    if (laden.end != oldLaden.end) {
      datum = new Date(laden.end);
-     mqtt.publish('/charging/end',datum.toLocaleString(),'{retain:TRUE}');
+     mqtt.publish('/charging/end',datum.toLocaleString(),{retain: true});
    };
+   console.log('++++++'+laden.minutes+' old '+oldLaden.minutes);
    if (laden.minutes != oldLaden.minutes) {
-     mqtt.publish('/charging/minutes',laden.minutes,'{"retain":"true"}');
-   };  
+     mqtt.publish('/charging/minutes',laden.minutes,{retain: true});
+   };
    log.log(laden);
    log.log('### END calcCharging ###')
  };
@@ -250,6 +251,8 @@
    while (ende===false) {
      //console.log('StartChargingTast');
      chargingProzess();
+     //mqtt.publish('/charging/minutes',laden.minutes,'{"retain":"true"}');
+
      await LeafConnect.timeout(1*60000); //statische 1 Minuten
    };
  }
@@ -297,16 +300,25 @@ async function getBattery() {
 async function startBatteryTask() {
   let ende=false;
   while (ende===false) {
+    let lastBatteryStatus = Object.assign({},lc.batteryStatus); //Klonen
     let minuten=1;
     log.log('BatteryProcess NextTick');
     await getBattery().then( ()=> {
       //console.log(lc.batteryStatus);
       //BatteryStaus an mqtt senden
-      mqtt.publish('/status/battery_percent',lc.batteryStatus.percentage);
-      mqtt.publish('/status/connected',lc.batteryStatus.isConnected);
-      mqtt.publish('/status/charging_status',lc.batteryStatus.chargeStatus);
-      const datum = new Date(lc.batteryStatus.updateTime);
-      mqtt.publish('/status/last_updated',datum.toLocaleString());
+      if (lastBatteryStatus.percentage != lc.batteryStatus.percentage) {
+        mqtt.publish('/status/battery_percent',lc.batteryStatus.percentage);
+      };
+      if (lastBatteryStatus.isConnected != lc.batteryStatus.isConnected) {
+        mqtt.publish('/status/connected',lc.batteryStatus.isConnected);
+      }
+      if (lastBatteryStatus.chargeStatus != lc.batteryStatus.chargeStatus) {
+        mqtt.publish('/status/charging_status',lc.batteryStatus.chargeStatus);
+      }
+      if (lastBatteryStatus.updateTime != lc.batteryStatus.updateTime) {
+        const datum = new Date(lc.batteryStatus.updateTime);
+        mqtt.publish('/status/last_updated',datum.toLocaleString());
+      }
       calcCharging();
       //em.emit('CalcCharing');
       //handleEvent('Event from getBattery ;)');
