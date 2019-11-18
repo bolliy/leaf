@@ -8,6 +8,8 @@ const crypto = require('crypto');
 const logger = require('./logger');
 
 const BatteryApi = require('./battery/battery-api');
+const AcApi = require('./ac/ac-api');
+
 const LoginResponse = require('./responses/login-response');
 const Config = require('./config');
 
@@ -19,16 +21,16 @@ class leafAPI {
 
     this.loggingIn = false; //Semaphore
     this.loggedIn = false;
+    this.logger = new logger(this.constructor.name);
 
     //this.logger = new Logger(this.constructor.name);
     /**
      * @type {AcApi}
      */
-    //this.ac = new AcApi(this);
+    this.ac = new AcApi(this);
     /**
      * @type {BatteryApi}
      */
-    this.logger = new logger('leafAPI');
     this.battery = new BatteryApi(this);
     this.leaf = undefined;
     this.customerInfo = undefined;
@@ -56,9 +58,9 @@ class leafAPI {
   }
 
   async login() {
+    this.loggingIn = true; //Semaphore
     const key = await this.connect();
     this.log('logging in with key '+key);
-    this.loggingIn = true; //Semaphore
     let res;
     try {
       res = await this.request("UserLoginRequest.php", {
@@ -206,7 +208,7 @@ class leafAPI {
       this.log('retrying requestBatteryStatusResult');
       [updateInfo] = await Promise.all([
         this.battery.requestStatusResult(this.leaf, this.customerInfo, key),
-        leafAPI.timeout(10000) //wait 5 seconds before continuing
+        leafAPI.timeout(10000) //wait 10 seconds before continuing
       ]);
       /*
       await leafAPI.timeout(5000) //wait 5 seconds before continuing
@@ -224,6 +226,58 @@ class leafAPI {
     this.batteryStatus.timeToFull3kW = updateInfo.batteryStatus.timeToFull3kW;
     this.adjustBatteryStatus();
     return updateInfo;
+  }
+
+
+  async acOn() {
+    await this.checkLogin();
+    //let api = this.api.ac;
+    //const key = await this.request(api, api.requestOn);
+    const key = await this.ac.requestOn(this.leaf, this.customerInfo);
+    let updateInfo = await this.ac.requestOnResult(this.leaf, this.customerInfo, key);
+    let count = 1;
+    while (updateInfo === null) {
+      if (count > 10) {
+        return Promise.reject(1000);  //Mit Fehler 1000 abbrechen
+      };
+      count ++;
+      this.log('retrying ac requestResult');
+      [updateInfo] = await Promise.all([
+        this.ac.requestOnResult(this.leaf, this.customerInfo, key),
+        leafAPI.timeout(10000)
+      ]);
+    }
+    return updateInfo;
+  }
+
+  /**
+   * @returns {Promise.<AcOff>}
+   */
+  async acOff() {
+    await this.checkLogin();
+    //let api = this.api.ac;
+    //const key = await this.request(api, api.requestOff);
+    const key = await this.ac.requestOff(this.leaf, this.customerInfo);
+    let updateInfo = await this.ac.requestOffResult(this.leaf, this.customerInfo, key);
+    let count = 1;
+    while (updateInfo === null) {
+      if (count > 10) {
+        return Promise.reject(1000);  //Mit Fehler 1000 abbrechen
+      };
+      count ++;
+      this.log('retrying ac requestResult');
+      [updateInfo] = await Promise.all([
+        this.ac.requestOffResult(this.leaf, this.customerInfo, key),
+        leafAPI.timeout(10000) //wait 10 seconds before continuing
+      ]);
+    }
+    return updateInfo;
+  }
+
+  async getAcRecord() {
+    this.log('getAcRecord');
+    await this.checkLogin();
+    return this.ac.getRecord(this.leaf, this.customerInfo);
   }
 
   async checkLogin() {

@@ -13,15 +13,15 @@ var callbacks = [];
 
 const mqttRouter = {
     connected : false,
-    init(eventHandler) {
-      this.eventHandler = eventHandler;
+    init(emitter) {
+      this.emitterHandler = emitter;
       this.topic = config.get("mqtt_topic");
       this.logger = new logger('mqttrouter');
 
       client.on('connect', () => {
         this.logger.log('mqtt connected');
         this.connected = true;
-        this.eventHandler();
+        this.emitterHandler();
       });
 
       client.on('disconnect', () => {
@@ -68,13 +68,11 @@ const mqttRouter = {
     return null;
   },
   publish(subTopic,messages,options) {
-    console.log('#### Aufruf publish ####');
     client.publish(this.topic+subTopic, messages.toString(),options,(err,date) => {
       if (err) {
         console.log(err.message);
         return;
       }
-      console.log('publish kein Fehler.')
     });
   }
 };

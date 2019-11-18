@@ -5,17 +5,17 @@
  const config = require('./config');
  const mqtt = require('./mqttrouter');
  const events = require('events');
- const logger = require('../logger');
+ const Logger = require('../logger');
 
  //create an object of EventEmitter class by using above reference
  const em = new events.EventEmitter();
- const log = new logger('charging');
+ const log = new Logger('charging');
 
 
  let lc;
 
  let laden = {
-    lastIsConnected:undefined,
+    wasConnected:undefined,
     aktiv:true,
     pause:false,
     request:false,
@@ -30,7 +30,6 @@
    init(nc){
      //globale Varibale
      lc = nc;
-     mqtt.init(handleEvent);
   },
   startProzess() {
     em.on('CalcCharing', calcCharging);
@@ -42,21 +41,17 @@
   },
   setData(data) {
     laden = data;
-  }
- };
+  },
+  handleMqttEmitter() {
+    mqtt.subscribe('/charging/activ',handleMqttEvent);
+    mqtt.subscribe('/charging/pause',handleMqttEvent);
+    mqtt.subscribe('/charging/up-to-percent',handleMqttEvent);
+    mqtt.subscribe('/charging/tele/LWT',handleMqttEvent); /* Online/offline */
+    mqtt.subscribe('/charging/stat/POWER',handleMqttEvent); /* ON/OFF */
+  },
 
- function handleEvent(reason) {
-   mqtt.subscribe('/charging/activ',handleMqttEvent);
-   mqtt.subscribe('/charging/pause',handleMqttEvent);
-   mqtt.subscribe('/charging/up-to-percent',handleMqttEvent);
-   mqtt.subscribe('/charging/tele/LWT',handleMqttEvent); /* Online/offline */
-   mqtt.subscribe('/charging/stat/POWER',handleMqttEvent); /* ON/OFF */
-/*
-   mqtt.publish('/charging/start',laden.start.toLocaleString(),'{"retain":"true"}');
-   mqtt.publish('/charging/end',laden.end,'{"retain":"true"}');
-   mqtt.publish('/charging/minutes',laden.minutes.toString(),'{"retain":"true"}');
-   */
- }
+};
+
 
  async function handleMqttEvent(topic,message) {
    log.log('handleMqttEvent');
@@ -105,7 +100,7 @@
    };
    let nowTime = new Date();
    nowTime.setTime(Date.now());
-   if (laden.request && laden.end > nowTime) {
+   if (laden.request && !laden.pause && laden.end > nowTime) {
      if (nowTime >= laden.start && laden.minutes > 30) {
        laden.request = false;
        laden.loading = true;
@@ -153,14 +148,13 @@
    log.log('calcCharging...');
    //console.log('Schalter: '+JSON.stringify(lc.schalter));
    //Status des Ladekabel hat sich geändert
-   if (laden.lastIsConnected != lc.batteryStatus.isConnected) {
-     if (!laden.pause
-          && !laden.loading
+   if (laden.wasConnected != lc.batteryStatus.isConnected) {
+     if (!laden.loading
           && !laden.request
           && lc.schalter.connected
           && lc.batteryStatus.isConnected
           && !lc.batteryStatus.isConnectedToQuickCharging
-          && ladeMinuten > 30) {
+          && ladeMinuten > 0) {
        //requestBatteryStatusResult
        laden.minutes = 0;
        laden.start = new Date(0); //1. Januar 1970 00:00:00 UTC
@@ -172,7 +166,7 @@
         laden.pause = false; //Pause wieder aufheben
         mqtt.publish('/charging/pause','OFF');
      };
-     laden.lastIsConnected = lc.batteryStatus.isConnected;
+     laden.wasConnected = lc.batteryStatus.isConnected;
    };
    //Gibt es ein Request aber das Kabel wurde abgzogen
    if (laden.request && !lc.batteryStatus.isConnected ) {
@@ -237,7 +231,7 @@
      datum = new Date(laden.end);
      mqtt.publish('/charging/end',datum.toLocaleString(),{retain: true});
    };
-   console.log('++++++'+laden.minutes+' old '+oldLaden.minutes);
+   //console.log('++++++'+laden.minutes+' old '+oldLaden.minutes);
    if (laden.minutes != oldLaden.minutes) {
      mqtt.publish('/charging/minutes',laden.minutes,{retain: true});
    };

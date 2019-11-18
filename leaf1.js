@@ -3,16 +3,28 @@
 
  const LeafConnect = require('./leaf-connect');
  const charging = require('./router/charging');
+ const ac = require('./router/ac-router');
+ const mqtt = require('./router/mqttrouter');
 
+
+ function mqttEmitter() {
+   charging.handleMqttEmitter();
+   ac.handleMqttEmittert();
+ };
 
  async function main() {
 
-  let lc = new LeafConnect('NE','stephan@mante.info','2389Ghost'); //NE
-  charging.init(lc);
-  charging.startProzess();
+   let lc = new LeafConnect('NE','stephan@mante.info','2389Ghost'); //NE
 
-  console.log('#ENDE#');
+   charging.init(lc);
+   charging.startProzess();
 
+   ac.init(lc);
+   ac.startProzess(lc);
+
+   mqtt.init(mqttEmitter);
+
+   console.log('#ENDE#');
 
    //AC controls
    /*
