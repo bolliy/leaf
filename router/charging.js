@@ -193,16 +193,18 @@
        //nach 19.00h
        //if (false) {
        if (nowTime > calcTime) {
-         calcTime.setHours('07');
+         calcTime.setHours('7');
          const nextDay = calcTime.valueOf() + 24*60*60000; //07.00h am nächsten Tag fertig geladen sein.
          if (nextDay-laden.minutes*60000 > nowTime.valueOf()) {
            laden.start = new Date(nextDay-laden.minutes*60000); //NexDay - Ladezeit
          }
        }
        laden.end = new Date(laden.start.valueOf() + laden.minutes*60000);
-       if (laden.start = nowTime) {
+       //log.log(laden);
+       if (laden.start === nowTime) {
          chargingProzess();
        }
+       //log.log(laden);
      } else {
        //Neue LadeEndZeit berechnen
        //wie lange wird der Leaf schon geladen
@@ -222,6 +224,7 @@
        }
      }
    };
+   //log.log(laden);
    let datum;
    if (laden.start != oldLaden.start) {
      datum = new Date(laden.start);
