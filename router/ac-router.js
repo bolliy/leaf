@@ -37,7 +37,7 @@ const ac = {
          }).catch(err => {
            this.logger.log(err);
        });
-       this.publishMqtt(); //Klimaschalter 
+       this.publishMqtt(); //Klimaschalter
      };
      await LeafConnect.timeout(30*60000); //statische 1 Minuten
    }
@@ -63,8 +63,12 @@ const ac = {
                 ende = true;
               }).catch( err => {
                 ac.logger.log('ClimaControl Error '+err);
-                if (err != 1000) {
-                  ac.lc.loggedIn = false;
+                if (!err) {
+                  ac.lc.loggedIn = false;  
+                } else {
+                  if (err != 1000) {
+                    ac.lc.loggedIn = false;
+                  }
                 }
               });
             }
@@ -91,7 +95,7 @@ const ac = {
       };
 
       if (res.success) {
-        status.isOn = !status.isOn; //toggle
+        status.isOn = res.hvacStatus  === 'ON';
         this.logger.log('Klimatesierung is '+status.isOn);
       } else {
         this.publishMqtt(); //Klimaschalter umschalten

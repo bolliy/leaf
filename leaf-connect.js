@@ -244,7 +244,7 @@ class leafAPI {
     let updateInfo = await this.ac.requestOnResult(this.leaf, this.customerInfo, key);
     let count = 1;
     while (updateInfo === null) {
-      if (count > 10) {
+      if (count > 20) {
         return Promise.reject(1000);  //Mit Fehler 1000 abbrechen
       };
       count ++;
@@ -268,7 +268,7 @@ class leafAPI {
     let updateInfo = await this.ac.requestOffResult(this.leaf, this.customerInfo, key);
     let count = 1;
     while (updateInfo === null) {
-      if (count > 10) {
+      if (count > 20) {
         return Promise.reject(1000);  //Mit Fehler 1000 abbrechen
       };
       count ++;

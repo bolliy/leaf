@@ -80,14 +80,14 @@
         let pause = (message.toString() === 'ON');
         if (laden.pause != pause) {
           laden.pause = pause;
-          calcCharging();
+          //calcCharging();
         }
         break;
       case _topic+'/charging/up-to-percent':
         let percent = parseInt(message.toString());
         if (laden.percent != percent) {
           laden.percent = parseInt(message.toString());
-          calcCharging();
+          //calcCharging();
         }
         break;
    }
@@ -249,7 +249,6 @@
      //console.log('StartChargingTast');
      chargingProzess();
      //mqtt.publish('/charging/minutes',laden.minutes,'{"retain":"true"}');
-
      await LeafConnect.timeout(1*60000); //statische 1 Minuten
    };
  }
