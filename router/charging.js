@@ -143,7 +143,8 @@
    let ladeMinuten = 0;
    if (pTime < 12*60*60000) {   //kleiner 12 Stunde
      //Ladezeit berechnen in Minuten
-     ladeMinuten = Math.round(900 * (laden.percent - lc.batteryStatus.percentage)/100);
+     //30kwh/2,3 kw = 13 h * 60 = 782 min
+     ladeMinuten = Math.round(800 * (laden.percent - lc.batteryStatus.percentage)/100);
    }
    log.log('calcCharging...');
    //console.log('Schalter: '+JSON.stringify(lc.schalter));

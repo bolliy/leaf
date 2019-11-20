@@ -21,6 +21,7 @@ const ac = {
     //this.logger = new Logger(this.constructor.name);
  },
  async startProzess() {
+   await LeafConnect.timeout(2*60000); //statische 1 Minuten
    let ende=false;
    let res;
    while (ende===false) {
@@ -64,7 +65,7 @@ const ac = {
               }).catch( err => {
                 ac.logger.log('ClimaControl Error '+err);
                 if (!err) {
-                  ac.lc.loggedIn = false;  
+                  ac.lc.loggedIn = false;
                 } else {
                   if (err != 1000) {
                     ac.lc.loggedIn = false;
