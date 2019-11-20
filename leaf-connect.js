@@ -59,8 +59,15 @@ class leafAPI {
 
   async login() {
     this.loggingIn = true; //Semaphore
-    const key = await this.connect();
-    this.log('logging in with key '+key);
+    let key
+    try {
+      key = await this.connect();
+      this.log('logging in with key '+key);
+    } catch(err) {
+      this.loggingIn = false;
+      this.log('connect failed');
+      throw err;
+    };
     let res;
     try {
       res = await this.request("UserLoginRequest.php", {
