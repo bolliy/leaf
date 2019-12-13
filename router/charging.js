@@ -282,13 +282,14 @@ async function getBattery() {
   log.log(lc.batteryStatus.percentage+' %');
   if (passedTime(lc.batteryStatus.updateTime) > 15*60000) {
     let status = await lc.getBatteryStatus();
+    log.log('#### Charge State:'+status.batteryStatus.chargeState);
+    log.log('#### Time to Full 3KW:'+status.batteryStatus.timeToFull3kW);
+    //Da der soc Wert benötigt wird
+    res = await lc.getLastBatteryStatus();
     log.log(lc.batteryStatus);
     datum = new Date(lc.batteryStatus.updateTime);
     log.log(datum.toLocaleString());
     log.log(lc.batteryStatus.percentage+' %');
-
-    log.log('#### Charge State:'+status.batteryStatus.chargeState);
-    log.log('#### Time to Full 3KW:'+status.batteryStatus.timeToFull3kW);
   };
 
   //console.log(lc.schalter);
@@ -307,31 +308,28 @@ async function startBatteryTask() {
         mqtt.publish('/status/battery_percent',lc.batteryStatus.percentage);
       };
       if (lastBatteryStatus.isConnected != lc.batteryStatus.isConnected) {
-        mqtt.publish('/status/connected',lc.batteryStatus.isConnected);
+        mqtt.publish('/status/connected',lc.batteryStatus.isConnected,{retain: true});
       }
       if (lastBatteryStatus.chargeStatus != lc.batteryStatus.chargeStatus) {
-        mqtt.publish('/status/charging_status',lc.batteryStatus.chargeStatus);
+        mqtt.publish('/status/charging_status',lc.batteryStatus.chargeStatus,{retain: true});
       }
       if (lastBatteryStatus.updateTime != lc.batteryStatus.updateTime) {
         const datum = new Date(lc.batteryStatus.updateTime);
-        mqtt.publish('/status/last_updated',datum.toLocaleString());
+        mqtt.publish('/status/last_updated',datum.toLocaleString(),{retain: true});
       }
       calcCharging();
-      //em.emit('CalcCharing');
-      //handleEvent('Event from getBattery ;)');
     }).catch(err => {
       log.log('Fehler '+err);
-      minuten = 0.1;
       if (err===401) {
         log.log('not authorised');
       };
       if (err==408) {
         log.log('timeout');
       };
-      //
+      // Error Try too often
       if (err != 1000) {
-        minuten = 2;
         lc.loggedIn = false;
+        minuten = 0.2;
       }
     });
     //console.log(lc.schalter);
