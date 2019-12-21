@@ -18,6 +18,7 @@
     wasConnected:undefined,
     aktiv:true,
     pause:false,
+    delayed:false,
     request:false,
     loading:false,
     percent:80,
@@ -46,6 +47,7 @@
     mqtt.subscribe('/charging/activ',handleMqttEvent);
     mqtt.subscribe('/charging/pause',handleMqttEvent);
     mqtt.subscribe('/charging/up-to-percent',handleMqttEvent);
+    mqtt.subscribe('/charging/delayed',handleMqttEvent);
     mqtt.subscribe('/charging/tele/LWT',handleMqttEvent); /* Online/offline */
     mqtt.subscribe('/charging/stat/POWER',handleMqttEvent); /* ON/OFF */
   },
@@ -81,6 +83,13 @@
         if (laden.pause != pause) {
           laden.pause = pause;
           //calcCharging();
+        }
+        break;
+      case _topic+'/charging/delayed':
+        let delayed = (message.toString() === 'ON');
+        if (laden.delayed != delayed) {
+          laden.delayed = delayed;
+          calcCharging();
         }
         break;
       case _topic+'/charging/up-to-percent':
@@ -184,16 +193,14 @@
      laden.minutes = ladeMinuten;
      //Ladezeit berechnen
      if (!laden.loading) {
-       let calcTime = new Date(nowTime.valueOf());
-       calcTime.setHours('19'); //Nach 19.00
-       calcTime.setMinutes(0);
-       calcTime.setSeconds(0);
-
        laden.start = new Date(nowTime.valueOf()); //jetzt laden
-
        //nach 19.00h
        //if (false) {
-       if (nowTime > calcTime) {
+       if (laden.delayed) {
+         let calcTime = new Date(nowTime.valueOf());
+         //calcTime.setHours('19'); //Nach 19.00
+         calcTime.setMinutes(0);
+         calcTime.setSeconds(0);
          calcTime.setHours('7');
          const nextDay = calcTime.valueOf() + 24*60*60000; //07.00h am nächsten Tag fertig geladen sein.
          if (nextDay-laden.minutes*60000 > nowTime.valueOf()) {

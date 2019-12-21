@@ -40,7 +40,7 @@ const ac = {
        });
        this.publishMqtt(); //Klimaschalter
      };
-     await LeafConnect.timeout(30*60000); //statische 1 Minuten
+     await LeafConnect.timeout(30*60000); //statische 30 Minuten
    }
  },
  handleMqttEmittert(reason) {
@@ -84,12 +84,13 @@ const ac = {
       let res;
       if (status.isOn) {
         res = await this.lc.acOff();
-        if (this.isConnected && !charging.getData().loading) {
+        //Steckdose an und nicht laden
+        if (this.ls.schalter.state === 'ON' && !charging.getData().loading) {
           mqtt.switchOFF();
         }
       } else {
-        //Wurde der Ladestecker gerade eingesteckt
-        if (this.isConnected && charging.getData().request ) {
+        //Wurde der Ladestecker gerade eingesteckt und der Leaf lädt noch nicht.
+        if (this.ls.schalter.state != 'ON' && charging.getData().request ) {
           mqtt.switchON();
         }
         res = await this.lc.acOn();
