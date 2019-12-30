@@ -85,12 +85,12 @@ const ac = {
       if (status.isOn) {
         res = await this.lc.acOff();
         //Steckdose an und nicht laden
-        if (this.ls.schalter.state === 'ON' && !charging.getData().loading) {
+        if (this.lc.schalter.state === 'ON' && !charging.getData().loading) {
           mqtt.switchOFF();
         }
       } else {
         //Wurde der Ladestecker gerade eingesteckt und der Leaf lädt noch nicht.
-        if (this.ls.schalter.state != 'ON' && charging.getData().request ) {
+        if (this.lc.schalter.state != 'ON' && charging.getData().request ) {
           mqtt.switchON();
         }
         res = await this.lc.acOn();

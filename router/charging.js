@@ -163,8 +163,7 @@
           && !laden.request
           && lc.schalter.connected
           && lc.batteryStatus.isConnected
-          && !lc.batteryStatus.isConnectedToQuickCharging
-          && ladeMinuten > 0) {
+          && !lc.batteryStatus.isConnectedToQuickCharging) {
        //requestBatteryStatusResult
        laden.minutes = 0;
        laden.start = new Date(0); //1. Januar 1970 00:00:00 UTC
