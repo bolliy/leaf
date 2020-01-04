@@ -116,6 +116,7 @@
        log.log('Der Ladevorgang wird jetzt gestartet...');
        mqtt.switchON();
        let res= await lc.battery.startCharging(lc.leaf,lc.customerInfo);
+       log.log(res);
      }
    }
    //Abbruchbedingung
@@ -124,6 +125,11 @@
    };
 
    if (laden.loading) {
+     if (!lc.batteryStatus.isCharging) {
+       laden.loading = false;
+       laden.request = true;
+       log.log('Ladung wurde nicht gestatet.');
+     }
      if (lc.batteryStatus.level >= laden.percent || nowTime > laden.end) {
        laden.loading = false;
        log.log('Leaf ist fertig geladen. '+lc.batteryStatus.level+'%');
@@ -197,13 +203,16 @@
        //if (false) {
        if (laden.delayed) {
          let calcTime = new Date(nowTime.valueOf());
-         //calcTime.setHours('19'); //Nach 19.00
          calcTime.setMinutes(0);
          calcTime.setSeconds(0);
-         calcTime.setHours('7');
-         const nextDay = calcTime.valueOf() + 24*60*60000; //07.00h am nächsten Tag fertig geladen sein.
-         if (nextDay-laden.minutes*60000 > nowTime.valueOf()) {
-           laden.start = new Date(nextDay-laden.minutes*60000); //NexDay - Ladezeit
+         calcTime.setHours('7'); //heute 07:00
+         let delayTimeValue = calcTime.valueOf();
+         //heute 07:00 < Jetzt
+         if (calcTime.valueOf() < nowTime.valueOf() ) {
+           delayTimeValue += 24*60*60000; //07.00h am nächsten Tag fertig geladen sein.
+         };
+         if (delayTimeValue-laden.minutes*60000 > nowTime.valueOf()) {
+           laden.start = new Date(delayTimeValue-laden.minutes*60000); //NexDay - Ladezeit
          }
        }
        laden.end = new Date(laden.start.valueOf() + laden.minutes*60000);
@@ -318,6 +327,7 @@ async function startBatteryTask() {
       }
       if (lastBatteryStatus.chargeStatus != lc.batteryStatus.chargeStatus) {
         mqtt.publish('/status/charging_status',lc.batteryStatus.chargeStatus,{retain: true});
+
       }
       if (lastBatteryStatus.updateTime != lc.batteryStatus.updateTime) {
         const datum = new Date(lc.batteryStatus.updateTime);
