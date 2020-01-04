@@ -112,11 +112,14 @@
    if (laden.request && !laden.pause && laden.end > nowTime) {
      if (nowTime >= laden.start && laden.minutes > 30) {
        laden.request = false;
-       laden.loading = true;
        log.log('Der Ladevorgang wird jetzt gestartet...');
        mqtt.switchON();
        let res= await lc.battery.startCharging(lc.leaf,lc.customerInfo);
-       log.log(res);
+       if (res.status === 200) {
+         laden.loading = true;
+       } else {
+         laden.request = true;
+       }
      }
    }
    //Abbruchbedingung
@@ -217,7 +220,7 @@
        }
        laden.end = new Date(laden.start.valueOf() + laden.minutes*60000);
        //log.log(laden);
-       if (laden.start === nowTime) {
+       if (laden.start <= nowTime ) {
          chargingProzess();
        }
        //log.log(laden);
