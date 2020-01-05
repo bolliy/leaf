@@ -44,6 +44,7 @@
     laden = data;
   },
   handleMqttEmitter() {
+    mqtt.subscribe('/charging/request',handleMqttEvent);
     mqtt.subscribe('/charging/activ',handleMqttEvent);
     mqtt.subscribe('/charging/pause',handleMqttEvent);
     mqtt.subscribe('/charging/up-to-percent',handleMqttEvent);
@@ -77,6 +78,18 @@
           laden.aktiv = activ;
           calcCharging();
         }
+        break;
+      case _topic+'/charging/request':
+        let request = (message.toString() === 'ON');
+        log.log(request);
+          if (request) {
+            laden.wasConnected = false;
+          } else {
+            laden.request = false;
+          };
+          log.log(laden.wasConnected);
+          calcCharging();
+
         break;
       case _topic+'/charging/pause':
         let pause = (message.toString() === 'ON');
@@ -257,6 +270,13 @@
    if (laden.minutes != oldLaden.minutes) {
      mqtt.publish('/charging/minutes',laden.minutes,{retain: true});
    };
+   if (laden.request != oldLaden.request) {
+     if (laden.request) {
+       mqtt.publish('/charging/request','ON',{retain: true});
+     } else {
+       mqtt.publish('/charging/request','OFF',{retain: true});
+     }   
+   };
    log.log(laden);
    log.log('### END calcCharging ###')
  };
@@ -300,14 +320,18 @@ async function getBattery() {
   log.log(lc.batteryStatus.percentage+' %');
   if (passedTime(lc.batteryStatus.updateTime) > 15*60000) {
     let status = await lc.getBatteryStatus();
+    log.log('####### BEGIN Battery #######');
+    log.log(status);
     log.log('#### Charge State:'+status.batteryStatus.chargeState);
     log.log('#### Time to Full 3KW:'+status.batteryStatus.timeToFull3kW);
     //Da der soc Wert benötigt wird
     res = await lc.getLastBatteryStatus();
-    log.log(lc.batteryStatus);
+    log.log(res);
+    log.log(JSON.stringify(lc.batteryStatus));
     datum = new Date(lc.batteryStatus.updateTime);
     log.log(datum.toLocaleString());
     log.log(lc.batteryStatus.percentage+' %');
+    log.log('####### END Battery #######');
   };
 
   //console.log(lc.schalter);
