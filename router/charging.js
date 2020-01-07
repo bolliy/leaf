@@ -120,6 +120,7 @@
    if (!laden.aktiv) {
      return
    };
+   let oldrequest = laden.request;
    let nowTime = new Date();
    nowTime.setTime(Date.now());
    if (laden.request && !laden.pause && laden.end > nowTime) {
@@ -162,10 +163,12 @@
        mqtt.switchOFF();
      }
    };
-   if (laden.request) {
-     mqtt.publish('/charging/request','ON',{retain: true});
-   } else {
-     mqtt.publish('/charging/request','OFF',{retain: true});
+   if (oldrequest != laden.request) {
+     if (laden.request) {
+       mqtt.publish('/charging/request','ON',{retain: true});
+     } else {
+       mqtt.publish('/charging/request','OFF',{retain: true});
+     }
    }
  };
 
