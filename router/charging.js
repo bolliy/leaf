@@ -161,6 +161,11 @@
      if (!laden.loading) {
        mqtt.switchOFF();
      }
+   };
+   if (laden.request) {
+     mqtt.publish('/charging/request','ON',{retain: true});
+   } else {
+     mqtt.publish('/charging/request','OFF',{retain: true});
    }
  };
 
@@ -275,7 +280,7 @@
        mqtt.publish('/charging/request','ON',{retain: true});
      } else {
        mqtt.publish('/charging/request','OFF',{retain: true});
-     }   
+     }
    };
    log.log(laden);
    log.log('### END calcCharging ###')
