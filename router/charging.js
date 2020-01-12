@@ -35,6 +35,7 @@
   startProzess() {
     em.on('CalcCharing', calcCharging);
     startBatteryTask();
+
     startChargingTask();
   },
   getData(){
@@ -293,7 +294,7 @@
    let ende=false;
 
    while (ende===false) {
-     //console.log('StartChargingTast');
+     log.log('chargingProzess NextTick');
      chargingProzess();
      //mqtt.publish('/charging/minutes',laden.minutes,'{"retain":"true"}');
      await LeafConnect.timeout(1*60000); //statische 1 Minuten
@@ -368,7 +369,7 @@ async function startBatteryTask() {
         const datum = new Date(lc.batteryStatus.updateTime);
         mqtt.publish('/status/last_updated',datum.toLocaleString(),{retain: true});
       }
-      calcCharging();
+      //calcCharging();
     }).catch(err => {
       log.log('Fehler '+err);
       if (err===401) {
@@ -384,6 +385,7 @@ async function startBatteryTask() {
       }
     });
     //console.log(lc.schalter);
+    calcCharging();
     await LeafConnect.timeout(minuten*60000); //statische 5 Minuten
   }
 }
