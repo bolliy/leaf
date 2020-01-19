@@ -118,6 +118,11 @@
 
  //Statet und stoppet de Ladeprozess
  async function chargingProzess() {
+   //Abbruchbedingung
+   if (laden.request && !lc.batteryStatus.isConnected) {
+     laden.request = false;
+   };
+
    if (!laden.aktiv) {
      return
    };
@@ -137,17 +142,15 @@
        }
      }
    }
-   //Abbruchbedingung
-   if (laden.request && !lc.batteryStatus.isConnected) {
-     laden.request = false;
-   };
 
    if (laden.loading) {
+     /*
      if (!lc.batteryStatus.isCharging) {
        laden.loading = false;
        laden.request = true;
        log.log('Ladung wurde nicht gestatet.');
      }
+     */
      if (lc.batteryStatus.level >= laden.percent || nowTime > laden.end) {
        laden.loading = false;
        log.log('Leaf ist fertig geladen. '+lc.batteryStatus.level+'%');
