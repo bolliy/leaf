@@ -5,7 +5,7 @@
   "main": "leaf.js",
   "dependencies": {
     "config-watch": "^0.1.0",
-    "moment": "^2.23.0",
+    "moment": "^2.26.0",
     "mqtt": "^3.0.0"
   },
   "devDependencies": {},
