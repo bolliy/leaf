@@ -82,15 +82,14 @@
         break;
       case _topic+'/charging/request':
         let request = (message.toString() === 'ON');
-        log.log(request);
-          if (request) {
-            laden.wasConnected = false;
-          } else {
-            laden.request = false;
-          };
-          log.log(laden.wasConnected);
-          calcCharging();
-
+        //log.log(request);
+        if (request) {
+          laden.wasConnected = false;
+        } else {
+          laden.request = false;
+        };
+          //log.log(laden.wasConnected);
+        calcCharging();
         break;
       case _topic+'/charging/pause':
         let pause = (message.toString() === 'ON');

@@ -112,7 +112,7 @@ class leafAPI {
           this.log(err.message);
           return reject(err);
         }
-        if (typeof(body.status) == 'undefined') {
+        if (typeof(body) === 'undefined') {
           return reject(new Error('Unexpected status code '))
         } else {
           if (body.status !== 200) {
