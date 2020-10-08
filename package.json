@@ -4,12 +4,12 @@
   "description": "",
   "main": "leaf.js",
   "dependencies": {
+    "braces": ">=3.0.2",
     "config-watch": "^0.1.0",
-    "moment": "^2.26.0",
-    "mqtt": "^3.0.0",
-    "minimist": ">=1.2.3",
-    "braces": ">=2.3.1"
-}
+    "minimist": ">=1.2.5",
+    "moment": "^2.29.1",
+    "mqtt": "^4.2.1",
+    "request": ""
   },
   "devDependencies": {},
   "scripts": {
