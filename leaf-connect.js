@@ -298,7 +298,7 @@ class leafAPI {
     if (this.loggingIn) {
       this.log('Loginprozess im Gange, ich warte.....')
       await leafAPI.timeout(2000); //statische Methode
-      return this.checkLogin();
+      //return this.checkLogin(); 26.05.21
     }
     await this.login();
   }
